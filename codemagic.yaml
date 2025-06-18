@@ -1,72 +1,53 @@
 workflows:
   expo-android-build:
-    name: Expo Android Build with APK Download
+    name: Expo Android Build with Upload
     max_build_duration: 120
     environment:
       node: 18.17.1
       java: 11
-      python: 3.11
     scripts:
       - name: Install dependencies
         script: |
-          # Install Python setuptools first
           pip3 install setuptools
-          
-          # Clean install
           npm cache clean --force
           npm install
           npm install -g @expo/cli
           
-      - name: Create APK
+      - name: Build APK
         script: |
-          # Login to Expo (make sure EXPO_TOKEN is set in environment variables)
           npx expo login --token $EXPO_TOKEN
-          
-          # Prebuild native code
           npx expo prebuild --platform android --clear
           
-          # Go to android folder and build
           cd android
           chmod +x gradlew
-          
-          # Build the APK
           ./gradlew assembleRelease
           
-          # IMPORTANT: Copy APK to root directory so CodeMagic can find it
-          mkdir -p ../build-output
-          cp app/build/outputs/apk/release/*.apk ../build-output/
+          # Copy APK to easy location
+          cp app/build/outputs/apk/release/*.apk ../my-app.apk
           
-          # List what we built (for debugging)
-          echo "=== APK FILES CREATED ==="
-          find .. -name "*.apk" -type f
-          ls -la ../build-output/
+      - name: Upload APK to file sharing
+        script: |
+          # Upload to transfer.sh (free file sharing)
+          echo "Uploading APK to transfer.sh..."
+          curl --upload-file my-app.apk https://transfer.sh/my-app.apk
+          echo ""
           
-    # MULTIPLE artifact patterns to catch the APK
+          # Also try uploading to 0x0.st
+          echo "Uploading to 0x0.st..."
+          curl -F'file=@my-app.apk' https://0x0.st
+          echo ""
+          
+          # Show file info
+          ls -la my-app.apk
+          
     artifacts:
-      - build-output/*.apk
+      - my-app.apk
       - android/app/build/outputs/apk/release/*.apk
-      - android/app/build/outputs/apk/**/*.apk
-      - "**/*.apk"
-      - "*.apk"
     
-    # Upload to multiple places
     publishing:
-      # Email with attachment
       email:
         recipients:
           - deamirclothingstores@gmail.com
         notify:
           success: true
           failure: true
-          
-      # Also try Slack if you have it
-      # slack:
-      #   channel: "#builds"
-      #   notify_on_build_start: false
-      
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'main'
-          include: true
