@@ -7,7 +7,23 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
+
+# Android
+android/
+!android/gradlew
+!android/gradlew.bat
+!android/gradle/
+!android/gradle.properties
+!android/settings.gradle
+!android/build.gradle
+!android/gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.properties
+
+# iOS
+ios/
+!ios/Podfile
+!ios/Podfile.lock
+!ios/Podfile.properties.json
 
 # Native
 .kotlin/
@@ -31,7 +47,23 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
+.env*
+!.env.example
 
 # typescript
 *.tsbuildinfo
+
+# Build outputs
+build/
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
