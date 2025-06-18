@@ -1,7 +1,7 @@
 workflows:
   android-workflow:
     name: Android Build with Expo
-    max_build_duration: 120  # 2 hours max
+    max_build_duration: 120  # Maximum allowed build duration
     environment:
       vars:
         KEYSTORE_PASSWORD: android
@@ -11,63 +11,77 @@ workflows:
     scripts:
       - name: Set up environment
         script: |
-          # ✅ 1) Use ONLY pnpm OR npm — pick ONE!
-          npm install -g pnpm expo-cli
-
-          # ✅ 2) Clean and reinstall
+          # Install Node.js and pnpm
+          npm install -g pnpm
+          
+          # Install project dependencies
+          pnpm install
+          
+          # Install Expo CLI
+          npm install -g expo-cli
+          
+          # Clear any cached files
+          rm -rf $HOME/.expo
           rm -rf node_modules
+          rm -rf $HOME/.gradle/caches
+          
+          # Clean install dependencies
           pnpm install --force
 
-      - name: Prebuild Android project
+      - name: Build Android Release
         script: |
-          # ✅ 3) Do NOT manually rm -rf android; let expo prebuild manage it
-          npx expo prebuild --clean --platform android
-
-      - name: Configure Gradle & Build Release APK
-        script: |
+          # Clear previous build
+          rm -rf android
+          
+          # Prebuild with expo
+          npx expo prebuild --clean -p android
+          
+          # Navigate to android directory
           cd android
-
-          # ✅ 4) Fix build.gradle repos — usually not needed but kept for safety
-          sed -i -e '/mavenCentral()/i\        google()\n        maven { url "https://maven.google.com" }\n        maven { url "https://www.jitpack.io" }' build.gradle
-
-          # ✅ 5) Enable multidex
+          
+          # Add required repositories and configurations
+          sed -i -e '/mavenCentral()/i\            google()\n            maven { url "https://maven.google.com" }\n            maven { url "https://www.jitpack.io" }' build.gradle
+          
+          # Update app/build.gradle with required configurations
           sed -i -e '/defaultConfig {/a\        multiDexEnabled true' app/build.gradle
-
-          # ✅ 6) Add camera view if needed — optional
+          
+          # Add camera view dependency
           if ! grep -q "com.google.android:cameraview" app/build.gradle; then
             sed -i -e '/dependencies {/a\    implementation "com.google.android:cameraview:1.0.0"' app/build.gradle
           fi
-
-          # ✅ 7) Create debug keystore props for signing
+          
+          # Clean Gradle
+          ./gradlew clean
+          
+          # Create keystore properties
           echo "storeFile=debug.keystore" > app/keystore.properties
           echo "storePassword=android" >> app/keystore.properties
           echo "keyAlias=androiddebugkey" >> app/keystore.properties
           echo "keyPassword=android" >> app/keystore.properties
-
-          # ✅ 8) Clean & build with more memory
-          ./gradlew clean
-
+          
+          # Build the release with more memory
           export ORG_GRADLE_PROJECT_androidxJvmArgs="-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError"
           export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError'"
-
+          
           ./gradlew assembleRelease --stacktrace --info --max-workers 2
-
+          
+          # Move artifacts to build directory
           cd ..
           mkdir -p build
           cp android/app/build/outputs/bundle/release/*.aab build/ 2>/dev/null || true
           cp android/app/build/outputs/apk/release/*.apk build/ 2>/dev/null || true
-
+    
     artifacts:
       - android/app/build/outputs/**/*.apk
       - android/app/build/outputs/**/*.aab
       - build/*.apk
       - build/*.aab
-
+    
     publishing:
       email:
         recipients:
           - deamirclothingstores@gmail.com
-
+    
     triggering:
       events:
         - push
