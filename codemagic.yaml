@@ -72,6 +72,8 @@ workflows:
           cp android/app/build/outputs/apk/release/*.apk build/ 2>/dev/null || true
     
     artifacts:
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/*.aab
       - build/*.apk
       - build/*.aab
     
