@@ -1,32 +1,33 @@
 workflows:
   expo-android-build:
-    name: Expo Android Build
+    name: EAS Android Build
     max_build_duration: 120
     environment:
       node: 18.17.1
-      java: 11
+      # EAS CLI will handle all the build environment setup
     scripts:
-      - name: Install dependencies
+      - name: Install EAS CLI and dependencies
         script: |
-          yarn global add @expo/cli turtle-cli
-          yarn install
+          # Install EAS CLI globally
+          npm install -g eas-cli
           
-      - name: Expo prebuild and build
+          # Install project dependencies
+          npm install
+          
+          # Login to Expo (using environment variable)
+          # Make sure to set EXPO_TOKEN in Codemagic environment variables
+          eas login --token $EXPO_TOKEN
+          
+      - name: Build with EAS
         script: |
-          # Login to Expo
-          npx expo login --token $EXPO_TOKEN
+          # Build the APK using EAS
+          eas build -p android --profile production --non-interactive --no-wait
           
-          # Prebuild the native code
-          npx expo prebuild --platform android
-          
-          # Build APK locally
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
-          
-    artifacts:
-      - android/app/build/outputs/apk/release/*.apk
-      - android/app/build/outputs/apk/**/*.apk
+          # The build will be handled by Expo's servers
+          echo "Build started! Check your Expo dashboard for progress and download link."
+          echo "You'll receive an email when the build is complete."
+    
+    # No need to specify artifacts as EAS will handle the build output
     
     publishing:
       email:
@@ -35,3 +36,10 @@ workflows:
         notify:
           success: true
           failure: true
+    
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
