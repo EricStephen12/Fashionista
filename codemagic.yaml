@@ -10,18 +10,29 @@ workflows:
         KEYSTORE_PASSWORD: android
         KEY_ALIAS: androiddebugkey
         KEY_PASSWORD: android
+      node: 18.17.1  # Specify Node.js version to avoid compatibility issues
     scripts:
       - name: Set up environment
         script: |
-          # Install Node.js dependencies
-          npm install -g pnpm eas-cli
+          # Check if pnpm is already available, if not install it
+          if ! command -v pnpm &> /dev/null; then
+            npm install -g pnpm --force
+          fi
+          
+          # Install EAS CLI (avoid duplicate installation)
+          if ! command -v eas &> /dev/null; then
+            npm install -g @expo/eas-cli --force
+          fi
+          
+          # Install project dependencies
           pnpm install
           
-          # Install EAS CLI
-          npm install -g eas-cli
-          
-          # Configure EAS
-          eas login --token $EXPO_TOKEN
+          # Configure EAS with error handling
+          if [ -n "$EXPO_TOKEN" ]; then
+            eas login --token $EXPO_TOKEN
+          else
+            echo "Warning: EXPO_TOKEN not set, skipping EAS login"
+          fi
           
       - name: Set up debug keystore
         script: |
