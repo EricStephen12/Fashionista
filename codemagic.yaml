@@ -1,47 +1,34 @@
 workflows:
   expo-android-build:
-    name: Simple Expo Android Build
+    name: EAS Android Build
     max_build_duration: 120
     environment:
       node: 18.17.1
-      java: 11
+      # EAS CLI will handle all the build environment setup
     scripts:
-      - name: Install and setup
+      - name: Install EAS CLI and dependencies
         script: |
-          # Install Expo CLI
-          npm install -g @expo/cli
+          # Install EAS CLI globally
+          npm install -g eas-cli
           
-          # Install dependencies with npm (more reliable than pnpm for Expo)
+          # Install project dependencies
           npm install
           
-          # Check project structure
-          echo "Project files:"
-          ls -la
+          # Login to Expo (using environment variable)
+          # Make sure to set EXPO_TOKEN in Codemagic environment variables
+          eas login --token $EXPO_TOKEN
           
-      - name: Build Android APK
+      - name: Build with EAS
         script: |
-          # Clear any existing builds
-          rm -rf android
+          # Build the APK using EAS
+          eas build -p android --profile production --non-interactive --no-wait
           
-          # Generate Android project
-          npx expo prebuild --platform android --clear
-          
-          # Build APK
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-          
-          # Copy APK to artifacts
-          cd ..
-          mkdir -p artifacts
-          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/
-          
-          echo "Build complete:"
-          ls -la artifacts/
-
-    artifacts:
-      - artifacts/*.apk
-      
+          # The build will be handled by Expo's servers
+          echo "Build started! Check your Expo dashboard for progress and download link."
+          echo "You'll receive an email when the build is complete."
+    
+    # No need to specify artifacts as EAS will handle the build output
+    
     publishing:
       email:
         recipients:
@@ -49,7 +36,7 @@ workflows:
         notify:
           success: true
           failure: true
-          
+    
     triggering:
       events:
         - push

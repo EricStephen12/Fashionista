@@ -14,6 +14,7 @@
     "assetBundlePatterns": [
       "**/*"
     ],
+    "platforms": ["ios", "android", "web"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.xayno.fashionista"
@@ -24,6 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.xayno.fashionista",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "ACCESS_FINE_LOCATION"
