@@ -4,8 +4,6 @@ workflows:
     max_build_duration: 120
     environment:
       vars:
-        EXPO_TOKEN: $EXPO_TOKEN  # Set this in Codemagic UI environment variables
-        EAS_PROJECT_ID: $EAS_PROJECT_ID  # Your Expo project ID
         # Using debug keystore for simplicity
         KEYSTORE_PASSWORD: android
         KEY_ALIAS: androiddebugkey
@@ -19,20 +17,11 @@ workflows:
             npm install -g pnpm --force
           fi
           
-          # Install EAS CLI (avoid duplicate installation)
-          if ! command -v eas &> /dev/null; then
-            npm install -g @expo/eas-cli --force
-          fi
-          
           # Install project dependencies
           pnpm install
           
-          # Configure EAS with error handling
-          if [ -n "$EXPO_TOKEN" ]; then
-            eas login --token $EXPO_TOKEN
-          else
-            echo "Warning: EXPO_TOKEN not set, skipping EAS login"
-          fi
+          # Skip EAS setup since no EXPO_TOKEN is provided
+          echo "Building locally without Expo cloud services"
           
       - name: Set up debug keystore
         script: |
@@ -46,45 +35,8 @@ workflows:
           
       - name: Build Android Release
         script: |
-          # Prebuild Android files
-          npx expo prebuild -p android
-          
-          # Update build.gradle for debug signing
-          cat >> android/app/build.gradle << 'EOL'
-
-          // Debug signing configuration
-          android {
-              signingConfigs {
-                  debug {
-                      storeFile file('debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                  }
-                  release {
-                      storeFile file('debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                  }
-              }
-              buildTypes {
-                  debug {
-                      signingConfig signingConfigs.debug
-                  }
-                  release {
-                      signingConfig signingConfigs.release
-                      minifyEnabled true
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
-              }
-          }
-          EOL
-          
-          # Build the release
-          cd android
-          ./gradlew clean
-          ./gradlew assembleRelease
+          # Use the local build script from package.json
+          pnpm run build:android:local
           
       - name: Upload Artifact
         script: |
