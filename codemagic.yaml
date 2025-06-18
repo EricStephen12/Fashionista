@@ -92,10 +92,10 @@ EOL
           script: |
             echo "Android build completed successfully!"
             echo "APK and AAB files are available in the artifacts section."
-
-triggers:
-  - push
-    branch_patterns:
-      - pattern: 'main'
-        include: true
+    triggers:
+      - push
+        branch_patterns:
+          - pattern: 'main'
+            include: true
+            start_build: true
         start_build: true
