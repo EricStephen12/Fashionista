@@ -8,8 +8,7 @@ workflows:
         KEY_ALIAS: androiddebugkey
         KEY_PASSWORD: android
       node: 18.17.1
-      xcode: latest
-      android_sdk: "33"
+      xcode: latest-xcode
     scripts:
       - name: Set up environment
         script: |
