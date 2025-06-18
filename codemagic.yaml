@@ -1,42 +1,69 @@
 workflows:
   expo-android-build:
-    name: EAS Android Build
+    name: Expo Android Build with APK Download
     max_build_duration: 120
     environment:
       node: 18.17.1
-      # EAS CLI will handle all the build environment setup
+      java: 11
+      python: 3.11
     scripts:
-      - name: Install EAS CLI and dependencies
+      - name: Install dependencies
         script: |
-          # Install EAS CLI globally
-          npm install -g eas-cli
+          # Install Python setuptools first
+          pip3 install setuptools
           
-          # Install project dependencies
+          # Clean install
+          npm cache clean --force
           npm install
+          npm install -g @expo/cli
           
-          # Login to Expo (using environment variable)
-          # Make sure to set EXPO_TOKEN in Codemagic environment variables
-          eas login --token $EXPO_TOKEN
-          
-      - name: Build with EAS
+      - name: Create APK
         script: |
-          # Build the APK using EAS
-          eas build -p android --profile production --non-interactive --no-wait
+          # Login to Expo (make sure EXPO_TOKEN is set in environment variables)
+          npx expo login --token $EXPO_TOKEN
           
-          # The build will be handled by Expo's servers
-          echo "Build started! Check your Expo dashboard for progress and download link."
-          echo "You'll receive an email when the build is complete."
+          # Prebuild native code
+          npx expo prebuild --platform android --clear
+          
+          # Go to android folder and build
+          cd android
+          chmod +x gradlew
+          
+          # Build the APK
+          ./gradlew assembleRelease
+          
+          # IMPORTANT: Copy APK to root directory so CodeMagic can find it
+          mkdir -p ../build-output
+          cp app/build/outputs/apk/release/*.apk ../build-output/
+          
+          # List what we built (for debugging)
+          echo "=== APK FILES CREATED ==="
+          find .. -name "*.apk" -type f
+          ls -la ../build-output/
+          
+    # MULTIPLE artifact patterns to catch the APK
+    artifacts:
+      - build-output/*.apk
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/apk/**/*.apk
+      - "**/*.apk"
+      - "*.apk"
     
-    # No need to specify artifacts as EAS will handle the build output
-    
+    # Upload to multiple places
     publishing:
+      # Email with attachment
       email:
         recipients:
           - deamirclothingstores@gmail.com
         notify:
           success: true
           failure: true
-    
+          
+      # Also try Slack if you have it
+      # slack:
+      #   channel: "#builds"
+      #   notify_on_build_start: false
+      
     triggering:
       events:
         - push
