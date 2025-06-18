@@ -34,6 +34,17 @@ workflows:
           echo "keyAlias=androiddebugkey" >> android/keystore.properties
           echo "keyPassword=android" >> android/keystore.properties
           
+          # Fix expo-camera dependency issue
+          # Add jcenter repository to android/build.gradle if not present
+          if ! grep -q "jcenter()" android/build.gradle; then
+            sed -i '/google()/a\        jcenter()' android/build.gradle
+          fi
+          
+          # Add Maven Central repository
+          if ! grep -q "mavenCentral()" android/build.gradle; then
+            sed -i '/google()/a\        mavenCentral()' android/build.gradle
+          fi
+          
           # Update build.gradle for debug signing
           cat >> android/app/build.gradle << 'EOL'
 
@@ -66,10 +77,10 @@ workflows:
           }
           EOL
           
-          # Build the release
+          # Build the release with verbose output for debugging
           cd android
           ./gradlew clean
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --stacktrace
           
       - name: Upload Artifact
         script: |
