@@ -1,7 +1,7 @@
 workflows:
   android-workflow:
     name: Android Build with Expo
-    max_build_duration: 120  # in minutes
+    max_build_duration: 120
     environment:
       vars:
         KEYSTORE_PASSWORD: android
@@ -9,62 +9,33 @@ workflows:
         KEY_PASSWORD: android
       node: 18.17.1
     scripts:
-      - name: Setup Environment
+      - name: Install dependencies & Expo CLI
         script: |
-          npm install -g pnpm
+          npm install -g pnpm expo-cli
           pnpm install
-          npm install -g expo-cli
 
-          # Extra clean up
-          rm -rf $HOME/.expo
-          rm -rf node_modules
-          rm -rf $HOME/.gradle/caches
-          pnpm install --force
+      - name: Prebuild Android project
+        script: |
+          npx expo prebuild --clean --platform android
 
       - name: Build Android Release
         script: |
-          # Clean old android folder if exists
-          rm -rf android
-
-          # Generate native android project
-          npx expo prebuild --clean -p android
-
           cd android
-
-          # Patch gradle configs for camera
-          sed -i -e '/mavenCentral()/i\            google()\n            maven { url "https://maven.google.com" }\n            maven { url "https://www.jitpack.io" }' build.gradle
-          sed -i -e '/defaultConfig {/a\        multiDexEnabled true' app/build.gradle
-          if ! grep -q "com.google.android:cameraview" app/build.gradle; then
-            sed -i -e '/dependencies {/a\    implementation "com.google.android:cameraview:1.0.0"' app/build.gradle
-          fi
-
           ./gradlew clean
-
-          # Create debug keystore properties
-          echo "storeFile=debug.keystore" > app/keystore.properties
-          echo "storePassword=android" >> app/keystore.properties
-          echo "keyAlias=androiddebugkey" >> app/keystore.properties
-          echo "keyPassword=android" >> app/keystore.properties
-
-          # Build with more memory
-          export ORG_GRADLE_PROJECT_androidxJvmArgs="-Xmx4096m"
-          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs='-Xmx4096m'"
-
-          ./gradlew assembleRelease --stacktrace --info --max-workers 2
-
+          ./gradlew assembleRelease --stacktrace --info
           cd ..
           mkdir -p build
-
-          # Copy all build outputs
-          cp -R android/app/build/outputs/* build/
+          cp android/app/build/outputs/apk/release/*.apk build/ 2>/dev/null || true
+          cp android/app/build/outputs/bundle/release/*.aab build/ 2>/dev/null || true
 
     artifacts:
-      - build/**/*
+      - build/*.apk
+      - build/*.aab
 
     publishing:
       email:
         recipients:
-          - your.email@example.com
+          - deamirclothingstores@gmail.com
 
     triggering:
       events:
