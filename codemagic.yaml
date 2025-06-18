@@ -1,130 +1,43 @@
 workflows:
-  expo-prebuild-android:
-    name: Expo Prebuild Android
+  expo-android-build:
+    name: Simple Expo Android Build
     max_build_duration: 120
     environment:
       node: 18.17.1
       java: 11
-      vars:
-        ANDROID_HOME: /opt/android-sdk-linux
-        ANDROID_SDK_ROOT: /opt/android-sdk-linux
     scripts:
-      - name: Install dependencies
+      - name: Install and setup
         script: |
-          # Install package manager and dependencies
-          npm install -g pnpm @expo/cli
-          pnpm install
+          # Install Expo CLI
+          npm install -g @expo/cli
           
-          # Verify project structure
-          echo "=== Project Structure ==="
+          # Install dependencies with npm (more reliable than pnpm for Expo)
+          npm install
+          
+          # Check project structure
+          echo "Project files:"
           ls -la
           
-          if [ ! -f "package.json" ]; then
-            echo "ERROR: No package.json found"
-            exit 1
-          fi
-          
-          if [ ! -f "app.json" ] && [ ! -f "app.config.js" ]; then
-            echo "ERROR: No app.json or app.config.js found"
-            exit 1
-          fi
-          
-          echo "=== Package.json contents ==="
-          cat package.json
-
-      - name: Generate Android project
+      - name: Build Android APK
         script: |
-          # Clear any existing android folder
+          # Clear any existing builds
           rm -rf android
           
-          # Generate native Android project
-          echo "=== Running Expo Prebuild ==="
-          npx expo prebuild --clean --platform android --no-install
+          # Generate Android project
+          npx expo prebuild --platform android --clear
           
-          # Verify android folder was created
-          if [ ! -d "android" ]; then
-            echo "ERROR: Android folder not generated"
-            echo "Checking if prebuild worked..."
-            ls -la
-            exit 1
-          fi
-          
-          echo "=== Android project generated successfully ==="
-          ls -la android/
-
-      - name: Setup Android build environment
-        script: |
+          # Build APK
           cd android
-          
-          # Make gradlew executable
           chmod +x gradlew
+          ./gradlew assembleDebug
           
-          # Create local.properties for Android SDK
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          
-          # Setup debug keystore
-          KEYSTORE_PATH="$HOME/.android/debug.keystore"
-          if [ ! -f "$KEYSTORE_PATH" ]; then
-            mkdir -p "$HOME/.android"
-            keytool -genkey -v -keystore "$KEYSTORE_PATH" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          
-          echo "=== Android environment setup complete ==="
-
-      - name: Build APK
-        script: |
-          cd android
-          
-          # Clean previous builds
-          ./gradlew clean
-          
-          # Set memory options for Gradle
-          export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxPermSize=512m'"
-          
-          # Build release APK
-          echo "=== Building Release APK ==="
-          ./gradlew assembleRelease --stacktrace --no-daemon
-          
-          # Check if APK was built
-          echo "=== Checking build outputs ==="
-          find app/build/outputs -name "*.apk" -type f
-          
-          if [ ! -d "app/build/outputs/apk/release" ]; then
-            echo "ERROR: Release APK not found"
-            echo "Available build outputs:"
-            find app/build -name "*.apk" -type f
-            exit 1
-          fi
-          
-          # Go back to project root
+          # Copy APK to artifacts
           cd ..
-          
-          # Create artifacts directory
           mkdir -p artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/
           
-          # Copy APK files
-          find android/app/build/outputs -name "*.apk" -exec cp {} artifacts/ \;
-          
-          # Rename APK for easier identification
-          if [ -f "artifacts/app-release-unsigned.apk" ]; then
-            mv artifacts/app-release-unsigned.apk artifacts/app-release.apk
-          fi
-          
-          # List final artifacts
-          echo "=== Final artifacts ==="
+          echo "Build complete:"
           ls -la artifacts/
-          
-          # Verify we have at least one APK
-          APK_COUNT=$(ls -1 artifacts/*.apk 2>/dev/null | wc -l)
-          if [ "$APK_COUNT" -eq 0 ]; then
-            echo "ERROR: No APK files generated!"
-            exit 1
-          fi
-          
-          echo "SUCCESS: Generated $APK_COUNT APK file(s)"
 
     artifacts:
       - artifacts/*.apk
