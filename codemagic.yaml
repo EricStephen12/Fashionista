@@ -41,34 +41,34 @@ workflows:
           # Update build.gradle for debug signing
           cat >> android/app/build.gradle << 'EOL'
 
-// Debug signing configuration
-android {
-    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-        release {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-    }
-    buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-        }
-    }
-}
-EOL
+          // Debug signing configuration
+          android {
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+                  release {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+              }
+              buildTypes {
+                  debug {
+                      signingConfig signingConfigs.debug
+                  }
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled true
+                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+                  }
+              }
+          }
+          EOL
           
           # Build the release
           cd android
@@ -87,15 +87,9 @@ EOL
       email:
         recipients:
           - your.email@example.com  # Update with your email
-      scripts:
-        - name: Notify Success
-          script: |
-            echo "Android build completed successfully!"
-            echo "APK and AAB files are available in the artifacts section."
-    triggers:
-      - push
-        branch_patterns:
-          - pattern: 'main'
-            include: true
-            start_build: true
-        start_build: true
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'main'
+          include: true
