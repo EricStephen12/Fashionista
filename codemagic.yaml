@@ -1,107 +1,141 @@
 workflows:
-  android-workflow:
-    name: Android Build with Expo
+  expo-prebuild-android:
+    name: Expo Prebuild Android
     max_build_duration: 120
     environment:
-      vars:
-        KEYSTORE_PASSWORD: android
-        KEY_ALIAS: androiddebugkey
-        KEY_PASSWORD: android
       node: 18.17.1
+      java: 11
+      vars:
+        ANDROID_HOME: /opt/android-sdk-linux
+        ANDROID_SDK_ROOT: /opt/android-sdk-linux
     scripts:
-      - name: Set up environment
+      - name: Install dependencies
         script: |
-          # Install Node.js and pnpm
-          npm install -g pnpm
-          
-          # Install project dependencies
+          # Install package manager and dependencies
+          npm install -g pnpm @expo/cli
           pnpm install
           
-          # Install Expo CLI
-          npm install -g expo-cli
+          # Verify project structure
+          echo "=== Project Structure ==="
+          ls -la
           
-          # Clear any cached files
-          rm -rf $HOME/.expo
-          rm -rf node_modules
-          rm -rf $HOME/.gradle/caches
-          
-          # Clean install dependencies
-          pnpm install --force
-
-      - name: Build Android Release
-        script: |
-          # Clear previous build
-          rm -rf android
-          
-          # Prebuild with expo
-          npx expo prebuild --clean -p android
-          
-          # Navigate to android directory
-          cd android
-          
-          # Add required repositories and configurations
-          sed -i -e '/mavenCentral()/i\            google()\n            maven { url "https://maven.google.com" }\n            maven { url "https://www.jitpack.io" }' build.gradle
-          
-          # Update app/build.gradle with required configurations
-          sed -i -e '/defaultConfig {/a\        multiDexEnabled true' app/build.gradle
-          
-          # Add camera view dependency
-          if ! grep -q "com.google.android:cameraview" app/build.gradle; then
-            sed -i -e '/dependencies {/a\    implementation "com.google.android:cameraview:1.0.0"' app/build.gradle
+          if [ ! -f "package.json" ]; then
+            echo "ERROR: No package.json found"
+            exit 1
           fi
           
-          # Clean Gradle
+          if [ ! -f "app.json" ] && [ ! -f "app.config.js" ]; then
+            echo "ERROR: No app.json or app.config.js found"
+            exit 1
+          fi
+          
+          echo "=== Package.json contents ==="
+          cat package.json
+
+      - name: Generate Android project
+        script: |
+          # Clear any existing android folder
+          rm -rf android
+          
+          # Generate native Android project
+          echo "=== Running Expo Prebuild ==="
+          npx expo prebuild --clean --platform android --no-install
+          
+          # Verify android folder was created
+          if [ ! -d "android" ]; then
+            echo "ERROR: Android folder not generated"
+            echo "Checking if prebuild worked..."
+            ls -la
+            exit 1
+          fi
+          
+          echo "=== Android project generated successfully ==="
+          ls -la android/
+
+      - name: Setup Android build environment
+        script: |
+          cd android
+          
+          # Make gradlew executable
+          chmod +x gradlew
+          
+          # Create local.properties for Android SDK
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          
+          # Setup debug keystore
+          KEYSTORE_PATH="$HOME/.android/debug.keystore"
+          if [ ! -f "$KEYSTORE_PATH" ]; then
+            mkdir -p "$HOME/.android"
+            keytool -genkey -v -keystore "$KEYSTORE_PATH" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          
+          echo "=== Android environment setup complete ==="
+
+      - name: Build APK
+        script: |
+          cd android
+          
+          # Clean previous builds
           ./gradlew clean
           
-          # Create keystore properties
-          echo "storeFile=debug.keystore" > app/keystore.properties
-          echo "storePassword=android" >> app/keystore.properties
-          echo "keyAlias=androiddebugkey" >> app/keystore.properties
-          echo "keyPassword=android" >> app/keystore.properties
+          # Set memory options for Gradle
+          export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx4g -XX:MaxPermSize=512m'"
           
-          # Build the release with more memory
-          export ORG_GRADLE_PROJECT_androidxJvmArgs="-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError"
-          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError'"
+          # Build release APK
+          echo "=== Building Release APK ==="
+          ./gradlew assembleRelease --stacktrace --no-daemon
           
-          # Build APK and AAB
-          ./gradlew assembleRelease bundleRelease --stacktrace --info --max-workers 2
+          # Check if APK was built
+          echo "=== Checking build outputs ==="
+          find app/build/outputs -name "*.apk" -type f
           
-          # List what was actually built
-          echo "=== Build outputs ==="
-          find app/build/outputs -name "*.apk" -o -name "*.aab" | head -10
+          if [ ! -d "app/build/outputs/apk/release" ]; then
+            echo "ERROR: Release APK not found"
+            echo "Available build outputs:"
+            find app/build -name "*.apk" -type f
+            exit 1
+          fi
           
-          # Go back to root and create artifacts directory
+          # Go back to project root
           cd ..
+          
+          # Create artifacts directory
           mkdir -p artifacts
           
-          # Copy all APK and AAB files to artifacts directory
+          # Copy APK files
           find android/app/build/outputs -name "*.apk" -exec cp {} artifacts/ \;
-          find android/app/build/outputs -name "*.aab" -exec cp {} artifacts/ \;
+          
+          # Rename APK for easier identification
+          if [ -f "artifacts/app-release-unsigned.apk" ]; then
+            mv artifacts/app-release-unsigned.apk artifacts/app-release.apk
+          fi
           
           # List final artifacts
           echo "=== Final artifacts ==="
           ls -la artifacts/
+          
+          # Verify we have at least one APK
+          APK_COUNT=$(ls -1 artifacts/*.apk 2>/dev/null | wc -l)
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "ERROR: No APK files generated!"
+            exit 1
+          fi
+          
+          echo "SUCCESS: Generated $APK_COUNT APK file(s)"
 
     artifacts:
       - artifacts/*.apk
-      - artifacts/*.aab
       
     publishing:
-      # Email notification with download links
       email:
         recipients:
           - deamirclothingstores@gmail.com
         notify:
           success: true
           failure: true
-          
-      # Optional: Slack notification with download links
-      # slack:
-      #   channel: '#builds'
-      #   notify_on_build_start: false
-      #   notify:
-      #     success: true
-      #     failure: true
           
     triggering:
       events:
