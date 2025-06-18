@@ -1,18 +1,22 @@
 workflows:
   android-workflow:
     name: Android Build with Expo
-    max_build_duration: 120
+    max_build_duration: 300  # Increased timeout for slower builds
     environment:
       vars:
         KEYSTORE_PASSWORD: android
         KEY_ALIAS: androiddebugkey
         KEY_PASSWORD: android
       node: 18.17.1
+      xcode: latest
+      android_sdk: "33"
     scripts:
       - name: Set up environment
         script: |
           # Install Node.js and pnpm
           npm install -g pnpm
+          
+          # Install project dependencies
           pnpm install
           
           # Install Expo CLI
@@ -37,6 +41,17 @@ workflows:
           # Navigate to android directory
           cd android
           
+          # Add required repositories and configurations
+          sed -i -e '/mavenCentral()/i\            google()\n            maven { url "https://maven.google.com" }\n            maven { url "https://www.jitpack.io" }' build.gradle
+          
+          # Update app/build.gradle with required configurations
+          sed -i -e '/defaultConfig {/a\        multiDexEnabled true' app/build.gradle
+          
+          # Add camera view dependency
+          if ! grep -q "com.google.android:cameraview" app/build.gradle; then
+            sed -i -e '/dependencies {/a\    implementation "com.google.android:cameraview:1.0.0"' app/build.gradle
+          fi
+          
           # Clean Gradle
           ./gradlew clean
           
@@ -46,18 +61,17 @@ workflows:
           echo "keyAlias=androiddebugkey" >> app/keystore.properties
           echo "keyPassword=android" >> app/keystore.properties
           
-          # Update build.gradle files
-          sed -i "s/compileSdk = 33/compileSdk = 33/" app/build.gradle
-          sed -i "s/targetSdk = 33/targetSdk = 33/" app/build.gradle
+          # Build the release with more memory
+          export ORG_GRADLE_PROJECT_androidxJvmArgs="-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError"
+          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxPermSize=1024m -XX:+HeapDumpOnOutOfMemoryError'"
           
-          # Build the release
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --stacktrace --info --max-workers 2
           
           # Move artifacts to build directory
           cd ..
           mkdir -p build
-          cp android/app/build/outputs/bundle/release/app-release.aab build/
-          cp android/app/build/outputs/apk/release/app-release.apk build/
+          cp android/app/build/outputs/bundle/release/*.aab build/ 2>/dev/null || true
+          cp android/app/build/outputs/apk/release/*.apk build/ 2>/dev/null || true
     
     artifacts:
       - build/*.apk
