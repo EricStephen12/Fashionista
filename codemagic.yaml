@@ -4,96 +4,70 @@ workflows:
     max_build_duration: 120
     environment:
       vars:
-        # Using debug keystore for simplicity
         KEYSTORE_PASSWORD: android
         KEY_ALIAS: androiddebugkey
         KEY_PASSWORD: android
-      node: 18.17.1  # Specify Node.js version to avoid compatibility issues
+      node: 18.17.1
     scripts:
       - name: Set up environment
         script: |
-          # Check if pnpm is already available, if not install it
-          if ! command -v pnpm &> /dev/null; then
-            npm install -g pnpm --force
-          fi
-          
-          # Install project dependencies
+          # Install Node.js and pnpm
+          npm install -g pnpm
           pnpm install
           
-          # Skip EAS setup since no EXPO_TOKEN is provided
-          echo "Building locally without Expo cloud services"
+          # Install Expo CLI
+          npm install -g expo-cli
           
+          # Clear any cached files
+          rm -rf $HOME/.expo
+          rm -rf node_modules
+          rm -rf $HOME/.gradle/caches
+          
+          # Clean install dependencies
+          pnpm install --force
+
       - name: Build Android Release
         script: |
-          # First, run expo prebuild to create the android folder
-          npx expo prebuild -p android
+          # Clear previous build
+          rm -rf android
           
-          # Now create keystore properties after android folder exists
-          echo "storeFile=debug.keystore" > android/keystore.properties
-          echo "storePassword=android" >> android/keystore.properties
-          echo "keyAlias=androiddebugkey" >> android/keystore.properties
-          echo "keyPassword=android" >> android/keystore.properties
+          # Prebuild with expo
+          npx expo prebuild --clean -p android
           
-          # Fix expo-camera dependency issue
-          # Add jcenter repository to android/build.gradle if not present
-          if ! grep -q "jcenter()" android/build.gradle; then
-            sed -i '/google()/a\        jcenter()' android/build.gradle
-          fi
-          
-          # Add Maven Central repository
-          if ! grep -q "mavenCentral()" android/build.gradle; then
-            sed -i '/google()/a\        mavenCentral()' android/build.gradle
-          fi
-          
-          # Update build.gradle for debug signing
-          cat >> android/app/build.gradle << 'EOL'
-
-          // Debug signing configuration
-          android {
-              signingConfigs {
-                  debug {
-                      storeFile file('debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                  }
-                  release {
-                      storeFile file('debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                  }
-              }
-              buildTypes {
-                  debug {
-                      signingConfig signingConfigs.debug
-                  }
-                  release {
-                      signingConfig signingConfigs.release
-                      minifyEnabled true
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-                  }
-              }
-          }
-          EOL
-          
-          # Build the release with verbose output for debugging
+          # Navigate to android directory
           cd android
+          
+          # Clean Gradle
           ./gradlew clean
+          
+          # Create keystore properties
+          echo "storeFile=debug.keystore" > app/keystore.properties
+          echo "storePassword=android" >> app/keystore.properties
+          echo "keyAlias=androiddebugkey" >> app/keystore.properties
+          echo "keyPassword=android" >> app/keystore.properties
+          
+          # Update build.gradle files
+          sed -i "s/compileSdk = 33/compileSdk = 33/" app/build.gradle
+          sed -i "s/targetSdk = 33/targetSdk = 33/" app/build.gradle
+          
+          # Build the release
           ./gradlew assembleRelease --stacktrace
           
-      - name: Upload Artifact
-        script: |
+          # Move artifacts to build directory
+          cd ..
           mkdir -p build
           cp android/app/build/outputs/bundle/release/app-release.aab build/
           cp android/app/build/outputs/apk/release/app-release.apk build/
+    
     artifacts:
       - build/*.apk
       - build/*.aab
+    
     publishing:
       email:
         recipients:
-          - your.email@example.com  # Update with your email
+          - your.email@example.com
+    
     triggering:
       events:
         - push
