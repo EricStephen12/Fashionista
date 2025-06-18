@@ -1,7 +1,7 @@
 workflows:
   android-workflow:
     name: Android Build with Expo
-    max_build_duration: 300  # Increased timeout for slower builds
+    max_build_duration: 120  # Maximum allowed build duration
     environment:
       vars:
         KEYSTORE_PASSWORD: android
