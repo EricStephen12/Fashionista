@@ -87,11 +87,6 @@ workflows:
       - artifacts/*.aab
       
     publishing:
-      # Enable artifacts to be downloadable from Codemagic dashboard
-      artifacts:
-        - artifacts/*.apk
-        - artifacts/*.aab
-      
       # Email notification with download links
       email:
         recipients:
