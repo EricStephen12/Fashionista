@@ -3,7 +3,7 @@ workflows:
     name: Expo Android Build with Upload
     max_build_duration: 120
     environment:
-      node: 18.17.1
+      node: 18.20.0
       java: 11
     scripts:
       - name: Install dependencies
@@ -15,15 +15,36 @@ workflows:
           
       - name: Build APK
         script: |
-          npx expo login --token $EXPO_TOKEN
-          npx expo prebuild --platform android --clear
+          # Check login status
+          npx expo whoami || echo "Not logged in"
           
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          # Login if token available
+          if [ ! -z "$EXPO_TOKEN" ]; then
+            echo "$EXPO_TOKEN" | npx expo login --stdin
+          fi
           
-          # Copy APK to easy location
-          cp app/build/outputs/apk/release/*.apk ../my-app.apk
+          # Prebuild
+          npx expo prebuild --platform android
+          
+          # Check if android folder exists
+          if [ -d "android" ]; then
+            cd android
+            chmod +x gradlew
+            ./gradlew assembleRelease
+            
+            # Copy APK to easy location
+            if ls app/build/outputs/apk/release/*.apk 1> /dev/null 2>&1; then
+              cp app/build/outputs/apk/release/*.apk ../my-app.apk
+              echo "APK created successfully!"
+            else
+              echo "APK build failed or not found"
+              find . -name "*.apk" -type f
+              exit 1
+            fi
+          else
+            echo "Android folder not created"
+            exit 1
+          fi
           
       - name: Upload APK to file sharing
         script: |
